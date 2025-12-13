@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+  Outlook Add-in Manifest
+  Dieses File sagt Outlook, wo die App liegt und wie sie heißt.
+-->
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides"
+  xsi:type="MailApp">
+  
+  <!-- Eindeutige ID (UUID) -->
+  <Id>78f9c1b0-1111-2222-3333-444455556666</Id>
+  <Version>1.0.0.1</Version>
+  <ProviderName>Mein Gemini Add-in</ProviderName>
+  <DefaultLocale>de-DE</DefaultLocale>
+  
+  <!-- Name und Beschreibung in Outlook -->
+  <DisplayName DefaultValue="Gemini Pro für Outlook" />
+  <Description DefaultValue="Nutzt Gemini AI um E-Mails zu schreiben und zusammenzufassen." />
+  
+  <!-- Icon (Google Sparkle) -->
+  <IconUrl DefaultValue="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg" />
+  
+  <Hosts>
+    <Host Name="Mailbox" />
+  </Hosts>
+  
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+  
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <!-- 
+           WICHTIG: Hier muss Ihre GitHub URL stehen!
+           Beispiel: https://maxmustermann.github.io/outlook-gemini/index.html
+        -->
+        <SourceLocation DefaultValue="https://IHR_GITHUB_USER.github.io/IHR_REPO_NAME/index.html"/>
+        <RequestedHeight>450</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  
+  <!-- Berechtigungen: Lesen und Schreiben des aktuellen Elements -->
+  <Permissions>ReadWriteItem</Permissions>
+  
+  <!-- Regel: Add-in erscheint nur beim Lesen von Mails -->
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read" />
+  </Rule>
+  
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+</OfficeApp>
