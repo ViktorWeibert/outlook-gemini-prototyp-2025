@@ -40,7 +40,7 @@
            WICHTIG: Hier muss Ihre GitHub URL stehen!
            Beispiel: https://maxmustermann.github.io/outlook-gemini/index.html
         -->
-        <SourceLocation DefaultValue="https://github.com/ViktorWeibert/outlook-gemini/blob/main/index.html"/>
+        <SourceLocation DefaultValue="https://viktorweibert.github.io/outlook-gemini/index.html"/>
         <RequestedHeight>450</RequestedHeight>
       </DesktopSettings>
     </Form>
