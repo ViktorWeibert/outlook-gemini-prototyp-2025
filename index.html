@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini für Outlook</title>
+    <!-- Office JS API (Notwendig für die Verbindung zu Outlook) -->
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <!-- Tailwind CSS für schnelles Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome für Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <div class="bg-white p-4 shadow-sm border-b flex justify-between items-center z-10">
+        <h1 class="font-semibold text-gray-700 flex items-center gap-2">
+            <i class="fa-solid fa-sparkles text-blue-500"></i> Gemini Pro
+        </h1>
+        <button id="settingsBtn" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-gear"></i></button>
+    </div>
+
+    <!-- API Key Warning (wird ausgeblendet wenn Key vorhanden) -->
+    <div id="apiKeyWarning" class="bg-yellow-50 p-3 text-xs text-yellow-800 border-b border-yellow-200 hidden">
+        <i class="fa-solid fa-triangle-exclamation mr-1"></i> Bitte API Key in den Einstellungen hinterlegen.
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        
+        <!-- Context Section: Zeigt an, was wir bearbeiten -->
+        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+            <div class="text-xs text-gray-400 uppercase font-bold mb-1 tracking-wider">Kontext</div>
+            <div id="emailSubject" class="font-medium text-gray-800 truncate">Keine E-Mail ausgewählt</div>
+            <div id="emailFrom" class="text-sm text-gray-500 truncate">-</div>
+            <button id="refreshContext" class="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                <i class="fa-solid fa-arrows-rotate"></i> E-Mail neu laden
+            </button>
+        </div>
+
+        <!-- Actions -->
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="setMode('reply')" id="tabReply" class="bg-blue-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-blue-700 transition shadow-sm">Antworten</button>
+            <button onclick="setMode('summary')" id="tabSummary" class="bg-white text-gray-700 border border-gray-300 py-2 px-3 rounded text-sm font-medium hover:bg-gray-50 transition shadow-sm">Zusammenfassen</button>
+        </div>
+
+        <!-- Dynamic Controls based on Mode -->
+        <div id="controlsArea" class="space-y-3">
+            <!-- Reply Options -->
+            <div id="replyOptions">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Tonalität</label>
+                <select id="toneSelect" class="w-full text-sm border-gray-300 rounded border p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <option value="professional">Professionell & Sachlich</option>
+                    <option value="friendly">Freundlich & Locker</option>
+                    <option value="short">Kurz & Knapp</option>
+                    <option value="empathetic">Empathisch & Verständnisvoll</option>
+                </select>
+                
+                <label class="block text-xs font-medium text-gray-700 mt-2 mb-1">Zusätzliche Anweisung (Optional)</label>
+                <input type="text" id="customPrompt" placeholder="z.B. 'Erwähne das Meeting am Dienstag'" class="w-full text-sm border-gray-300 rounded border p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+        </div>
+
+        <!-- Action Button -->
+        <button id="generateBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2.5 rounded-lg shadow font-medium hover:opacity-90 transition flex justify-center items-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> <span id="btnText">Generieren</span>
+        </button>
+
+        <!-- Result Area -->
+        <div id="resultArea" class="hidden">
+            <div class="flex justify-between items-end mb-1">
+                <span class="text-xs font-bold text-gray-500 uppercase">Ergebnis</span>
+                <div class="flex gap-2">
+                    <button onclick="copyToClipboard()" class="text-xs text-gray-500 hover:text-blue-600" title="Kopieren"><i class="fa-regular fa-copy"></i></button>
+                </div>
+            </div>
+            <textarea id="geminiOutput" class="w-full h-40 text-sm p-3 border rounded bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-none" readonly></textarea>
+            
+            <button id="insertBtn" class="w-full mt-2 bg-gray-800 text-white py-2 rounded text-sm font-medium hover:bg-black transition">
+                In Outlook einfügen
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-xs p-4">
+            <h2 class="text-lg font-bold mb-3">Einstellungen</h2>
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-700 mb-1">Google Gemini API Key</label>
+                <input type="password" id="apiKeyInput" class="w-full text-sm p-2 border rounded focus:ring-blue-500 outline-none" placeholder="AIzaSy...">
+                <p class="text-[10px] text-gray-500 mt-1">Key erhältlich unter <a href="https://aistudio.google.com" target="_blank" class="text-blue-500 underline">aistudio.google.com</a></p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-700 mb-1">Modell</label>
+                <input type="text" id="modelInput" value="gemini-2.0-flash-exp" class="w-full text-sm p-2 border rounded focus:ring-blue-500 outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">z.B. gemini-1.5-pro oder gemini-pro</p>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="closeSettings" class="text-sm text-gray-500 hover:text-gray-800 px-3 py-1">Abbrechen</button>
+                <button id="saveSettings" class="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        let currentMode = 'reply'; // 'reply' or 'summary'
+        let emailData = { subject: "", body: "", from: "" };
+        let isOfficeInitialized = false;
+
+        // --- Initialization ---
+        // Robustere Prüfung für Office.js
+        if (typeof Office !== 'undefined') {
+            Office.onReady((info) => {
+                if (info.host === Office.HostType.Outlook) {
+                    isOfficeInitialized = true;
+                    loadEmailData();
+                } else {
+                    console.log("Office.js geladen, aber nicht in Outlook. Starte Demo-Modus.");
+                    initDemoMode();
+                }
+            });
+        } else {
+            console.log("Office.js nicht gefunden (Browser/Preview). Starte Demo-Modus.");
+            initDemoMode();
+        }
+
+        function initDemoMode() {
+            // Demo Data für Browser-Vorschau oder GitHub Pages Direktaufruf
+            emailData = {
+                subject: "Projektstatus Meeting Q4",
+                from: "Chef <chef@firma.de>",
+                body: "Hallo, wie sieht es mit dem Projekt Gemini aus? Können wir den Zeitplan einhalten? Bitte kurzes Update bis morgen."
+            };
+            updateContextUI();
+            
+            // UI Hinweis für Demo
+            const demoNotice = document.createElement('div');
+            demoNotice.className = "bg-blue-50 text-blue-700 text-xs text-center p-1 border-b border-blue-200";
+            demoNotice.innerHTML = "<i class='fa-solid fa-info-circle'></i> Demo-Modus (Nicht in Outlook)";
+            document.body.insertBefore(demoNotice, document.body.firstChild);
+        }
+
+        // Load Settings on Start
+        const storedKey = localStorage.getItem('gemini_api_key');
+        const storedModel = localStorage.getItem('gemini_model');
+        if(!storedKey) {
+            document.getElementById('apiKeyWarning').classList.remove('hidden');
+        } else {
+            document.getElementById('apiKeyInput').value = storedKey;
+        }
+        if(storedModel) document.getElementById('modelInput').value = storedModel;
+
+        // --- Core Functions ---
+
+        function loadEmailData() {
+            if (!isOfficeInitialized) return;
+            
+            const item = Office.context.mailbox.item;
+            document.getElementById('emailSubject').textContent = item.subject;
+            
+            if (item.from) {
+                document.getElementById('emailFrom').textContent = item.from.emailAddress;
+            }
+
+            // Body as Text laden
+            item.body.getAsync(Office.CoercionType.Text, (result) => {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    emailData.body = result.value;
+                    emailData.subject = item.subject;
+                }
+            });
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            
+            // UI Toggle
+            const btnReply = document.getElementById('tabReply');
+            const btnSummary = document.getElementById('tabSummary');
+            const replyOptions = document.getElementById('replyOptions');
+            const btnText = document.getElementById('btnText');
+
+            if (mode === 'reply') {
+                btnReply.className = "bg-blue-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-blue-700 transition shadow-sm";
+                btnSummary.className = "bg-white text-gray-700 border border-gray-300 py-2 px-3 rounded text-sm font-medium hover:bg-gray-50 transition shadow-sm";
+                replyOptions.classList.remove('hidden');
+                btnText.textContent = "Antwort generieren";
+            } else {
+                btnSummary.className = "bg-blue-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-blue-700 transition shadow-sm";
+                btnReply.className = "bg-white text-gray-700 border border-gray-300 py-2 px-3 rounded text-sm font-medium hover:bg-gray-50 transition shadow-sm";
+                replyOptions.classList.add('hidden');
+                btnText.textContent = "Zusammenfassung erstellen";
+            }
+        }
+
+        async function callGemini() {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            const model = localStorage.getItem('gemini_model') || 'gemini-1.5-flash';
+
+            if (!apiKey) {
+                document.getElementById('settingsModal').classList.remove('hidden');
+                alert("Bitte zuerst API Key speichern!");
+                return;
+            }
+
+            const loadingIcon = `<div class="loader mr-2"></div> Generiere...`;
+            const btn = document.getElementById('generateBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = loadingIcon;
+            btn.disabled = true;
+
+            try {
+                // Prompt Engineering
+                let systemPrompt = "";
+                let userPrompt = "";
+
+                if (currentMode === 'reply') {
+                    const tone = document.getElementById('toneSelect').value;
+                    const custom = document.getElementById('customPrompt').value;
+                    systemPrompt = `Du bist ein hilfreicher Assistent für E-Mails. Antworte in folgender Tonalität: ${tone}. Sprache: Deutsch.`;
+                    userPrompt = `E-Mail Inhalt: "${emailData.body}"\n\nZusätzliche Anweisung: ${custom}\n\nSchreibe eine Antwort-E-Mail.`;
+                } else {
+                    systemPrompt = "Du bist ein Experte im Zusammenfassen. Fasse kurz und prägnant auf Deutsch zusammen.";
+                    userPrompt = `Fasse diese E-Mail zusammen: "${emailData.body}"`;
+                }
+
+                // API Request structure
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: systemPrompt + "\n" + userPrompt }]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error.message);
+                }
+
+                const generatedText = data.candidates[0].content.parts[0].text;
+                
+                // Display Result
+                document.getElementById('resultArea').classList.remove('hidden');
+                document.getElementById('geminiOutput').value = generatedText;
+                // Scroll to result
+                document.getElementById('resultArea').scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                alert("Fehler bei der Anfrage: " + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('generateBtn').addEventListener('click', callGemini);
+        document.getElementById('refreshContext').addEventListener('click', loadEmailData);
+        
+        document.getElementById('insertBtn').addEventListener('click', () => {
+            const text = document.getElementById('geminiOutput').value;
+            if (isOfficeInitialized) {
+                // In Outlook Body einfügen
+                Office.context.mailbox.item.body.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
+            } else {
+                alert("In Outlook würde dieser Text nun an der Cursor-Position eingefügt werden.");
+            }
+        });
+
+        // Settings Modal Logic
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            document.getElementById('settingsModal').classList.remove('hidden');
+        });
+        document.getElementById('closeSettings').addEventListener('click', () => {
+            document.getElementById('settingsModal').classList.add('hidden');
+        });
+        document.getElementById('saveSettings').addEventListener('click', () => {
+            const key = document.getElementById('apiKeyInput').value;
+            const model = document.getElementById('modelInput').value;
+            if(key) {
+                localStorage.setItem('gemini_api_key', key);
+                localStorage.setItem('gemini_model', model);
+                document.getElementById('apiKeyWarning').classList.add('hidden');
+                document.getElementById('settingsModal').classList.add('hidden');
+            }
+        });
+
+        function updateContextUI() {
+            document.getElementById('emailSubject').textContent = emailData.subject;
+            document.getElementById('emailFrom').textContent = emailData.from;
+        }
+
+        function copyToClipboard() {
+            const copyText = document.getElementById("geminiOutput");
+            copyText.select();
+            document.execCommand("copy");
+        }
+
+    </script>
+</body>
+</html>
